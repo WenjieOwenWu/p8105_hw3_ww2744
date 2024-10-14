@@ -172,3 +172,124 @@ nhanes_df |>
 - Female participants exhibit slightly higher levels of activity throughout the day compared to males, particularly during the peak hours of activity.
 
 - In the `More than high school` group, compared to the other two groups, the difference between males and females becomes more pronounced. Males show a larger gap in activity levels compared to females from midday to evening.
+
+
+# Problem 3
+
+```{r}
+jan_2020 = read_csv("data/citibike/Jan 2020 Citi.csv", na = c("NA", "",".")) |>
+  janitor::clean_names()
+
+jul_2020 = read_csv("data/citibike/July 2020 Citi.csv", na = c("NA", "",".")) |>
+  janitor::clean_names()
+
+jan_2024 = read_csv("data/citibike/Jan 2024 Citi.csv", na = c("NA", "",".")) |>
+  janitor::clean_names()
+
+jul_2024 = read_csv("data/citibike/July 2024 Citi.csv", na = c("NA", "",".")) |>
+  janitor::clean_names()
+
+citi_bike = bind_rows(
+  jan_2020 |>
+    mutate(month = "January", year = 2020),
+  jul_2020 |>
+    mutate(month = "July", year = 2020),
+  jan_2024 |>
+    mutate(month = "January", year = 2024),
+  jul_2024 |>
+    mutate(month = "July", year = 2024)
+) |>
+  relocate(year, month) |>
+  drop_na(start_station_name, end_station_name, member_casual)
+```
+
+- The final dataset contains 73223 rows and 9 columns. The column elements contain various information, including the ride date, bike type, start and end stations, ride duration, and user type.
+
+- The tidying steps include column names cleaning, merging dataset and NA handling.
+
+```{r}
+citi_bike |>
+  group_by(year, month, member_casual) |>
+  summarize(total_rides = n()) |>
+  spread(member_casual, total_rides, fill = 0) |>
+  print()
+```
+
+- The overall trend shows continuous growth, indicating that more and more people are choosing Citi Bike as a means of transportation. Between January and July of 2020 and 2024, casual riders experienced an increase of approximately fivefold. However, due to the larger baseline in 2024, the actual number of additional riders is higher in 2024.
+
+- For members, there was a significant increase in 2024 compared to 2020, with the total number of members increasing by 16,000, almost double the number from July 2020. However, the absolute increase in the number of rides between July 2020 and January 2024 was relatively small.
+
+```{r}
+citi_bike |>
+  filter(month == "July", year == 2024) |>
+  group_by(start_station_name) |>
+  summarise(num_rides = n()) |>
+  arrange(desc(num_rides)) |>
+  slice_head(n = 5) |>
+  print()
+```
+
+```{r}
+effects_citi = 
+  citi_bike |>
+  mutate(
+    weekdays = factor(
+      weekdays, 
+      levels = c("Monday", "Tuesday", "Wednesday", 
+                 "Thursday", "Friday", "Saturday", "Sunday"),
+      ordered = TRUE  
+    )
+  ) |>
+  group_by(year, month, weekdays) |>
+  summarize(median_duration = median(duration, na.rm = TRUE)) |>
+  arrange(year, month, weekdays) |>
+  print()
+
+ggplot(effects_citi, aes(x = weekdays, y = median_duration, color = year, group = year)) +
+  geom_line(size = 1) +  
+  geom_point(size = 3) +  
+  facet_wrap(~ month) + 
+  labs(
+    title = "Effects of Day of the Week, Month, and Year on Median Ride Duration",
+    x = "Weekdays",
+    y = "Median Ride Duration",
+    color = "Year"
+  ) +
+  theme_minimal() +  
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    panel.spacing = unit(2, "lines")  
+  )
+```
+
+- In `January`, Ride durations are generally shorter and more stable throughout the week, staying below 10 minutes for most days.
+
+- In `July`, Ride durations are notably longer, with a clear increase during the weekends. This suggests that ride behavior changes significantly between winter and summer months, possibly due to weather conditions or seasonal activities. `July` shows more variability and longer ride durations, likely due to better weather and more outdoor activities.
+
+- Ride durations have generally decreased over the years. This might reflect changes in user behavior, infrastructure improvements, or new transportation policies over time.
+
+```{r}
+citi_bike |>
+  filter(year == 2024) |>
+  ggplot(aes(x = rideable_type, y = duration, fill = member_casual)) +
+  geom_boxplot(outlier.size = 1, alpha = 0.7) +  
+  facet_wrap(~ month) + 
+  labs(
+    title = "Impact of Month, Membership Status, and Bike Type on Ride Duration (2024)",
+    x = "Bike Type",
+    y = "Ride Duration (Minutes)",
+    fill = "User Type"
+  ) +
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)  
+  )
+```
+
+- `Casual riders` consistently exhibit longer ride durations compared to `Members` across all bike types. This pattern is expected as casual riders may use the bikes more for leisure or tourism, while members are more likely to use them for commuting or short trips.
+
+- `Electric bikes` have generally shorter ride durations compared to classic bikes for both user types. This reflects the convenience and faster speeds of electric bikes, which allow users to complete trips more quickly.
+
+- The plot reflects the increased availability and popularity of electric bikes in 2024, with both members and casual riders making significant use of them.
+
+- Across all bike types, some extreme outliers are observed, particularly among casual riders. These might represent special events, tourist usage, or issues with bike returns, which result in abnormally long trips.
