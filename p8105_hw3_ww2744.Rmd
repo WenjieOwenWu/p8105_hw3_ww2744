@@ -1,0 +1,71 @@
+---
+title: "p8105_hw3_ww2744"
+author: "Wenjie Wu"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(p8105.datasets)
+library(ggridges)
+library(patchwork)
+```
+
+# Problem 1
+
+```{r}
+data("ny_noaa")
+ny_noaa = 
+  ny_noaa |>
+  janitor::clean_names() |>
+  separate(col = date, into = c("year", "month", "day"), sep = "-", , convert = TRUE) |>
+  mutate(
+    tmax = as.numeric(tmax) / 10,
+    tmin = as.numeric(tmin) / 10,
+  )
+
+ny_noaa |>
+  summarize(
+    most_common_snow = names(which.max(table(na.omit(snow))))
+  )
+```
+
+- The most commonly observed values for snow is `0`, as it is common knowledge that the number of days with snowfall in a year is relatively few. The second most commonly observed value is `NA`, indicating there are still lots of missing data. 
+
+```{r}
+jan_avg = ny_noaa |>
+  filter(month == "01") |>
+  group_by(id, year) |>
+  summarize(avg_tmax_january = mean(tmax, na.rm = TRUE))
+
+jul_avg = ny_noaa |>
+  filter(month == "07") |>
+  group_by(id, year) |>
+  summarize(avg_tmax_july = mean(tmax, na.rm = TRUE))
+
+ny_noaa |>
+  group_by(id, year, month) |>
+  filter(month %in% c(1, 7)) |>
+  summarize(mean_tmax = mean(tmax, na.rm = TRUE, color = id)) |>
+  ggplot(aes(x = year, y = mean_tmax, group = id)) + geom_point() + geom_path() +
+  facet_grid(~month) +
+  labs(title = "Mean monthly temperature for each station across years for January and July")
+
+hex = 
+  ny_noaa |>
+  ggplot(aes(x = tmin, y = tmax)) + 
+  geom_hex()
+
+ridge = 
+  ny_noaa |>
+  filter(snow < 100, snow > 0) |>
+  ggplot(aes(x = snow, y = as.factor(year))) + 
+  geom_density_ridges()
+
+hex + ridge
+
+```
+- The hex plot shows that most data points are tightly clustered in the center, with some variability. However, occasional instances where tmax is less than tmin raise concerns about data quality. The ridge plot reveals a multimodal distribution of snowfall within a year, with most stations receiving 0-35 mm of snow.
+
+
+
