@@ -68,4 +68,107 @@ hex + ridge
 - The hex plot shows that most data points are tightly clustered in the center, with some variability. However, occasional instances where tmax is less than tmin raise concerns about data quality. The ridge plot reveals a multimodal distribution of snowfall within a year, with most stations receiving 0-35 mm of snow.
 
 
+# Problem 2
 
+```{r}
+accel_df = read_csv("data/nhanes_accel.csv", na = c("NA", "",".")) |>
+  janitor::clean_names()
+  
+covar_df = read_csv("data/nhanes_covar.csv", na = c("NA", "","."), skip = 4) |>
+  janitor::clean_names() 
+
+nhanes_df = left_join(accel_df, covar_df, by = c("seqn")) |>
+  filter(age >= 21) |>
+  drop_na(sex, age, bmi, education) |>
+  mutate(
+    sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female")),
+    education = factor(education, levels = c(1, 2, 3),            
+                       labels = c("Less than high school", 
+                                  "High school equivalent",
+                                  "More than high school"
+                                  ))
+  )
+
+gender_education_table = nhanes_df |>
+  group_by(education, sex) |>
+  summarize(count = n()) |>
+  spread(sex, count, fill = 0) |>
+  print()
+
+nhanes_df |>
+  ggplot(aes(x = education, y = age, fill = sex)) +
+  geom_boxplot() +
+  labs(
+    title = "Age Distributions for Men and Women in Each Education Category",
+    x = "Education Category",
+    y = "Age"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+```
+
+- For `less than high school education` and `More than high school` group, the age distributions of men and women are relatively similar, though women show slightly more concentration around the median. 
+
+- For `High shcool equivalent`, the upper and lower bounds of the boxplot for the female group are shifted upward compared to the male group, indicating that the overall age distribution for women in this education level is higher. This suggests that female participants in this category tend to be older on average or that women in this educational stage may have pursued education at a later age.
+
+```{r}
+nhanes_activity = nhanes_df |>
+  rowwise() |>
+  mutate(activity = sum(c_across(starts_with("min")), na.rm = TRUE)) |>
+  group_by(seqn, sex, age, education) |>
+  summarize(total_activity = sum(activity, na.rm = TRUE))
+
+ggplot(nhanes_activity, aes(x = age, y = total_activity, color = sex)) +
+  geom_point(alpha = 0.6) +  
+  geom_smooth(method = "loess", se = FALSE) + 
+  facet_wrap(~ education) +  
+  labs(
+    title = "Total Activity vs. Age by Sex and Education Level",
+    x = "Age",
+    y = "Total Activity",
+    color = "Sex"
+  ) +
+  theme_minimal() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+- Across all education levels, both men and women show a decline in total activity with increasing age. This decline is especially pronounced after the age of 60.
+
+- Female participants maintain more stable activity levels over the lifespan, with less dramatic declines than men
+
+- Participants with higher education show more stable activity levels over time, suggesting that education may correlate with better health awareness and sustained physical activity.
+
+```{r}
+nhanes_df |>
+  pivot_longer(
+    cols = starts_with("min"),            # Select all columns representing minutes
+    names_to = "minute",                  # Create a new column for minute
+    names_prefix = "min",                 # Remove the 'min' prefix
+    values_to = "activity",               # Create a column for activity values
+    names_transform = list(minute = as.integer)  # Convert minute to integer
+  ) |>
+  mutate(hour = floor(minute / 60)) |>
+  group_by(education, sex, hour) %>%
+  summarise(avg_activity = mean(activity, na.rm = TRUE)) |>
+  ggplot(aes(x = hour, y = avg_activity, color = sex)) +
+  geom_line(size = 1) +  # Plot activity over hours as a line
+  facet_wrap(~ education) +  # Separate panels for each education level
+  labs(
+    title = "24-Hour Activity Time Courses by Education Level and Sex",
+    x = "Hour of the Day",
+    y = "Average Activity",
+    color = "Sex"
+  ) +
+  theme_minimal() +  # Minimal theme for clarity
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis text
+    panel.spacing = unit(2, "lines")  # Adjust panel spacing
+  ) +
+  scale_x_continuous(breaks = seq(0, 24, by = 2))
+```
+
+- Across all three education levels, the daily activity follows a clear diurnal pattern. Activity starts to increase early in the day, peaks around midday or early afternoon, and declines toward the evening and night hours.
+
+- Female participants exhibit slightly higher levels of activity throughout the day compared to males, particularly during the peak hours of activity.
+
+- In the `More than high school` group, compared to the other two groups, the difference between males and females becomes more pronounced. Males show a larger gap in activity levels compared to females from midday to evening.
